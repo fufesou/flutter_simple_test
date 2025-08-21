@@ -1,0 +1,59 @@
+name: Flutter
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  FLUTTER_VERSION: "3.35.1"
+
+jobs:
+  windows:
+    name: ${{ matrix.job.target }} (${{ matrix.job.os }})
+    runs-on: ${{ matrix.job.os }}
+    # Temporarily disable this action due to additional test is needed.
+    # if: false
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          # - { target: x86_64-pc-windows-msvc, os: windows-2022, arch: x86_64 }
+          # - { target: i686-pc-windows-msvc, os: windows-2022, arch: x86 }
+          - { target: windows-arm64, os: windows-11-arm, arch: arm64 }
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # - name: Install flutter
+      #   uses: subosito/flutter-action@v2.12.0 #https://github.com/subosito/flutter-action/issues/277
+      #   with:
+      #     channel: "stable"
+      #     flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Build
+        run: |
+          flutter doctor -v
+          flutter pub get
+          flutter build windows --release
+          mkdir -p ./flutter_simple_test-debug-win-${{ matrix.job.arch }}
+          mv ./build/windows/${{matrix.job.arch}}/runner/Release/flutter_flutter_simple_test.exe ./flutter_simple_test-debug-win-${{ matrix.job.arch }}
+          mv ./build/windows/${{matrix.job.arch}}/runner/Release/flutter_simple_test.pdb ./flutter_simple_test-debug-win-${{ matrix.job.arch }}
+          Compress-Archive -Path ./flutter_simple_test-debug-win-${{ matrix.job.arch }} -DestinationPath flutter_simple_test-debug-win-${{ matrix.job.arch }}.zip
+          sha256sum flutter_simple_test-debug-win-${{ matrix.job.arch }}.zip > flutter_simple_test-debug-win-${{ matrix.job.arch }}.sha256
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: test ci
+          tag_name: build_ci
+          files: |
+            ./flutter_simple_test-debug-win-${{ matrix.job.arch }}.zip
+            ./flutter_simple_test-debug-win-${{ matrix.job.arch }}.sha256
